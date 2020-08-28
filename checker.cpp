@@ -1,21 +1,19 @@
 #include <assert.h>
 #include<iostream>
-
-const int bpmLimits[] = {70,150};
-const int spo2Min = 90;
-const int respRateLimits[] = {30,95};
+#include<vector>
+using namespace std;
 
 class Alert
 {
   public:
-  virtual void sendAlert(const char* vitalName,const char* message) = 0;
+  virtual void sendAlert(const string vitalName,const char* message) = 0;
   
 };
 
 class AlertInSms: public Alert
 {
   public:
-  void sendAlert(const char* vitalName,const char* message)
+  void sendAlert(const string vitalName,const char* message)
   {
     std::cout<<"SMS sent - "<<vitalName<<" "<<message<<std::endl;
   }
@@ -24,79 +22,105 @@ class AlertInSms: public Alert
 class AlertinSound: public Alert
 {
   public:
-  void sendAlert(const char* vitalName,const char* message)
+  void sendAlert(const string vitalName,const char* message)
   {
     std::cout<<"Alarm Sound - "<<vitalName<<" "<<message<<std::endl;
   }
 };
 
-class Vitals{
-
-  private:
-    Alert *alert;
-
-  public:
-
-  void setAlertType(Alert * alert)
+struct vital
+{
+  string vitalName;
+  int lowerLimit,upperLimit,vitalValue;
+  vital(string name,int lower,int upper)
   {
-    this->alert = alert;
+    vitalName = name;
+    lowerLimit = lower;
+    upperLimit = upper;
   }
-
-  bool vitalIsOk(const char * vitalName,float value,int lower,int upper)
-  {
-    if(value < lower)
-    {
-      alert->sendAlert(vitalName,"is low");
-      return false;
-    }
-    else if(value > upper)
-    {
-      alert->sendAlert(vitalName,"is high");
-      return false;
-    }
-    return true;
-    
-  }
-
-  bool vitalIsOk(const char* vitalName,float value,int lower)
-  {
-    if(value < lower)
-    {
-      alert->sendAlert(vitalName,"is low");
-      return false;
-    }
-    return true;
-  }
-
-  bool vitalsAreOk(float bpm, float spo2, float respRate) {
-    bool check = true;
-    if(!vitalIsOk("bpm",bpm,bpmLimits[0],bpmLimits[1]))
-      check = false;
-    if(!vitalIsOk("spo2",spo2,spo2Min))
-      check = false;
-    if(!vitalIsOk("Resprate",respRate,respRateLimits[0],respRateLimits[1]))
-      check = false;
-    return check;
-  }
-
 };
+
+bool vitalIsOk(Alert *alert, const string vitalName,float value,int lower,int upper)
+{
+  if(value < lower)
+  {
+    alert->sendAlert(vitalName,"is low");
+    return false;
+  }
+  else if(value > upper)
+  {
+    alert->sendAlert(vitalName,"is high");
+    return false;
+  }
+  return true;
+  
+}
+
+bool vitalsAreOk(Alert* alert,vector<vital>vitalsList) {
+  bool check = true;
+  
+  for(int i=0;i<vitalsList.size();i++)
+  {
+    if(!vitalIsOk(alert,vitalsList[i].vitalName,vitalsList[i].vitalValue,vitalsList[i].lowerLimit,vitalsList[i].upperLimit))
+      check=false;
+  }
+  
+  return check;
+}
+
+void setVitalValue(vector<vital>&vitalsList,string name,int value)
+{
+  for(int i=0;i<vitalsList.size();i++)
+  {
+    if(vitalsList[i].vitalName.compare(name) == 0)
+      vitalsList[i].vitalValue = value;
+  }
+}
 
 int main() {
 
   AlertInSms smsAlert;
-  
-  Vitals vital;
-  vital.setAlertType(&smsAlert); 
+  AlertinSound soundAlert;
 
-  assert(vital.vitalIsOk("Test",5,2,8)==true);
-  assert(vital.vitalIsOk("Test",5,6,8)==false);
-  assert(vital.vitalIsOk("Test",5,2,4)==false);
-  assert(vital.vitalIsOk("Test",5,2)==true);
-  assert(vital.vitalIsOk("Test",5,10)==false);
-  assert(vital.vitalsAreOk(80, 95, 60) == true);
-  assert(vital.vitalsAreOk(60, 80, 40) == false);
-  assert(vital.vitalsAreOk(170, 95, 40) == false);
-  assert(vital.vitalsAreOk(80, 85, 40) == false);
-  assert(vital.vitalsAreOk(80, 95, 20) == false);
-  assert(vital.vitalsAreOk(80, 95, 100) == false);
+  assert(vitalIsOk(&smsAlert,"Test",5,2,8)==true);
+  assert(vitalIsOk(&smsAlert,"Test",5,6,8)==false);
+  assert(vitalIsOk(&soundAlert,"Test",5,2,4)==false);
+  
+  vector<vital>vitalsList;
+  
+  vitalsList.push_back(*(new vital("bpm",70,150)));
+  vitalsList.push_back(*(new vital("spo2",90,250)));
+  vitalsList.push_back(*(new vital("respRate",30,95)));
+  
+  setVitalValue(vitalsList,"bpm",95);
+  setVitalValue(vitalsList,"spo2",100);
+  setVitalValue(vitalsList,"respRate",70);
+  assert(vitalsAreOk(&smsAlert,vitalsList) == true);
+  
+  
+  setVitalValue(vitalsList,"bpm",60);
+  setVitalValue(vitalsList,"spo2",80);
+  setVitalValue(vitalsList,"respRate",40);
+  assert(vitalsAreOk(&smsAlert,vitalsList) == false);
+  
+  setVitalValue(vitalsList,"bpm",170);
+  setVitalValue(vitalsList,"spo2",95);
+  setVitalValue(vitalsList,"respRate",100);
+  assert(vitalsAreOk(&smsAlert,vitalsList) == false);
+  
+  setVitalValue(vitalsList,"bpm",80);
+  setVitalValue(vitalsList,"spo2",85);
+  setVitalValue(vitalsList,"respRate",40);
+  assert(vitalsAreOk(&soundAlert,vitalsList) == false);
+  
+  setVitalValue(vitalsList,"bpm",80);
+  setVitalValue(vitalsList,"spo2",70);
+  setVitalValue(vitalsList,"respRate",20);
+  assert(vitalsAreOk(&soundAlert,vitalsList) == false);
+
+  setVitalValue(vitalsList,"bpm",80);
+  setVitalValue(vitalsList,"spo2",95);
+  setVitalValue(vitalsList,"respRate",100);
+  assert(vitalsAreOk(&soundAlert,vitalsList) == false);
+  
 }
